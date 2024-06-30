@@ -6,13 +6,13 @@ use async_raft_ext::raft::ClientWriteRequest;
 use async_raft_ext::{Config, Raft, RaftStorage};
 use rnacos::common::AppSysConfig;
 use rnacos::config::core::{ConfigActor, ConfigCmd};
+use rnacos::console::middle::login_middle::CheckLogin;
 use rnacos::grpc::bistream_manage::BiStreamManage;
 use rnacos::grpc::handler::InvokerHandler;
 use rnacos::grpc::nacos_proto::bi_request_stream_server::BiRequestStreamServer;
 use rnacos::grpc::nacos_proto::request_server::RequestServer;
 use rnacos::grpc::server::BiRequestStreamServerImpl;
 use rnacos::grpc::PayloadUtils;
-use rnacos::middle::login_middle::CheckLogin;
 use rnacos::naming::core::{NamingCmd, NamingResult};
 use rnacos::raft::cluster::model::RouterRequest;
 use rnacos::raft::cluster::route::{ConfigRoute, RaftAddrRouter};
@@ -20,20 +20,28 @@ use rnacos::raft::network::core::RaftRouter;
 use rnacos::raft::network::factory::{RaftClusterRequestSender, RaftConnectionFactory};
 use rnacos::raft::store::ClientRequest;
 use rnacos::starter::{build_share_data, config_factory};
-use rnacos::{grpc::server::RequestServerImpl, naming::core::NamingActor};
+use rnacos::{grpc::server::RequestServerImpl, naming::core::NamingActor, openapi};
 use sled::Db;
 use std::collections::{BTreeMap, HashSet};
 use std::error::Error;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Duration;
 use tonic::transport::Server;
 
 use actix_web::{middleware, HttpServer};
 use clap::Parser;
+use env_logger::TimestampPrecision;
+use env_logger_timezone_fmt::{TimeZoneFormat, TimeZoneFormatEnv};
+//use mimalloc::MiMalloc;
 use rnacos::common::appdata::AppShareData;
 use rnacos::common::constant::APP_VERSION;
+use rnacos::openapi::middle::auth_middle::ApiCheckAuth;
 use rnacos::raft::NacosRaft;
-use rnacos::web_config::{app_config, app_without_no_auth_console_config, console_config};
+use rnacos::web_config::{app_config, console_config};
+
+//#[global_allocator]
+//static GLOBAL: MiMalloc = MiMalloc;
 
 #[derive(Parser, Clone, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -49,8 +57,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let rust_log = std::env::var("RUST_LOG").unwrap_or("info".to_owned());
     println!("version:{}, RUST_LOG:{}", APP_VERSION, &rust_log);
     std::env::set_var("RUST_LOG", &rust_log);
-    env_logger::builder().format_timestamp_micros().init();
     let sys_config = Arc::new(AppSysConfig::init_from_env());
+    println!("data dir:{}", sys_config.config_db_dir);
+    let timezone_fmt = Arc::new(TimeZoneFormatEnv::new(
+        sys_config.gmt_fixed_offset_hours.map(|v| v * 60 * 60),
+        Some(TimestampPrecision::Micros),
+    ));
+    env_logger::Builder::from_default_env()
+        .format(move |buf, record| TimeZoneFormat::new(buf, &timezone_fmt).write(record))
+        .init();
     let factory_data = config_factory(sys_config.clone()).await?;
     let app_data = build_share_data(factory_data.clone())?;
     let http_addr = sys_config.get_http_addr();
@@ -58,7 +73,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     log::info!("http server addr:{}", &http_addr);
     log::info!("grpc server addr:{}", &grpc_addr);
 
-    let mut invoker = InvokerHandler::new();
+    let mut invoker = InvokerHandler::new(app_data.clone());
     invoker.add_config_handler(&app_data);
     invoker.add_naming_handler(&app_data);
     invoker.add_raft_handler(&app_data);
@@ -67,8 +82,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     tokio::spawn(async move {
         let addr = grpc_addr.parse().unwrap();
-        let request_server =
-            RequestServerImpl::new(grpc_app_data.bi_stream_manage.clone(), invoker);
+        let request_server = RequestServerImpl::new(grpc_app_data.clone(), invoker);
         let bi_request_stream_server =
             BiRequestStreamServerImpl::new(grpc_app_data.bi_stream_manage.clone());
         Server::builder()
@@ -79,10 +93,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .unwrap();
     });
 
-    let app_console_data = app_data.clone();
-    let app_data = Data::new(app_data);
-
     if sys_config.http_console_port > 0 {
+        let app_console_data = app_data.clone();
+
         std::thread::spawn(move || {
             actix_rt::System::with_tokio_rt(|| {
                 tokio::runtime::Builder::new_current_thread()
@@ -95,27 +108,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let mut server = HttpServer::new(move || {
+        let app_data = app_data.clone();
         let config_addr = app_data.config_addr.clone();
         let naming_addr = app_data.naming_addr.clone();
         let bistream_manage_http_addr = app_data.bi_stream_manage.clone();
-        let app_data = app_data.clone();
-        if app_data.sys_config.enable_no_auth_console {
-            App::new()
-                .app_data(app_data)
-                .app_data(Data::new(config_addr))
-                .app_data(Data::new(naming_addr))
-                .app_data(Data::new(bistream_manage_http_addr))
-                .wrap(middleware::Logger::default())
-                .configure(app_config)
-        } else {
-            App::new()
-                .app_data(app_data)
-                .app_data(Data::new(config_addr))
-                .app_data(Data::new(naming_addr))
-                .app_data(Data::new(bistream_manage_http_addr))
-                .wrap(middleware::Logger::default())
-                .configure(app_without_no_auth_console_config)
-        }
+        let source_app_data = app_data.clone();
+        let app_config_shard = app_data.sys_config.deref().clone();
+        App::new()
+            .app_data(Data::new(app_data))
+            .app_data(Data::new(config_addr))
+            .app_data(Data::new(naming_addr))
+            .app_data(Data::new(bistream_manage_http_addr))
+            .wrap(ApiCheckAuth::new(source_app_data))
+            .wrap(middleware::Logger::default())
+            .configure(app_config(app_config_shard))
     });
     if let Some(num) = sys_config.http_workers {
         server = server.workers(num);

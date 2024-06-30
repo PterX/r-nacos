@@ -7,6 +7,9 @@ pub mod model;
 pub mod naming_api;
 pub mod user_api;
 
+pub mod middle;
+pub mod v2;
+
 use std::sync::Arc;
 
 use crate::{
@@ -44,7 +47,7 @@ impl NamespaceUtils {
             Ok(res) => {
                 let r: ConfigResult = res.unwrap();
                 match r {
-                    ConfigResult::DATA(v, _md5) => v,
+                    ConfigResult::Data { value: v, .. } => v,
                     _ => Arc::new("".to_string()),
                 }
             }
@@ -74,7 +77,7 @@ impl NamespaceUtils {
             Ok(res) => {
                 let r: ConfigResult = res.unwrap();
                 match r {
-                    ConfigResult::DATA(v, _md5) => v,
+                    ConfigResult::Data { value: v, .. } => v,
                     _ => Arc::new("".to_string()),
                 }
             }

@@ -13,14 +13,16 @@ use futures_util::future::LocalBoxFuture;
 use regex::Regex;
 
 use crate::common::appdata::AppShareData;
-use crate::common::model::{ApiResult, UserSession};
+use crate::common::model::{ApiResultOld, UserSession};
 use crate::raft::cache::model::{CacheKey, CacheType, CacheValue};
 use crate::raft::cache::{CacheManager, CacheManagerReq, CacheManagerResult};
 use crate::user::permission::UserRole;
 
 lazy_static::lazy_static! {
-    pub static ref IGNORE_CHECK_LOGIN: Vec<&'static str> = vec!["/p/login", "/nacos/v1/console/login/login", "/nacos/v1/console/login/captcha","/404",
-        "/rnacos/p/login", "/rnacos/api/console/login/login", "/rnacos/api/console/login/captcha","/rnacos/404",
+    pub static ref IGNORE_CHECK_LOGIN: Vec<&'static str> = vec![
+        "/rnacos/p/login", "/rnacos/404",
+        "/rnacos/api/console/login/login", "/rnacos/api/console/login/captcha",
+        "/rnacos/api/console/v2/login/login", "/rnacos/api/console/v2/login/captcha",
     ];
     pub static ref STATIC_FILE_PATH: Regex= Regex::new(r"(?i).*\.(js|css|png|jpg|jpeg|bmp|svg)").unwrap();
     pub static ref API_PATH: Regex = Regex::new(r"(?i)/(api|nacos)/.*").unwrap();
@@ -135,7 +137,7 @@ where
                     } else {
                         HttpResponse::Ok()
                             .insert_header(("No-Permission", "1"))
-                            .json(ApiResult::<()>::error("NO_PERMISSION".to_owned(), None))
+                            .json(ApiResultOld::<()>::error("NO_PERMISSION".to_owned(), None))
                             .map_into_right_body()
                     };
                     let (http_request, _pl) = request.into_parts();
@@ -170,7 +172,7 @@ where
                 } else {
                     HttpResponse::Ok()
                         .insert_header(("No-Login", "1"))
-                        .json(ApiResult::<()>::error("NO_LOGIN".to_owned(), None))
+                        .json(ApiResultOld::<()>::error("NO_LOGIN".to_owned(), None))
                         .map_into_right_body()
                 };
                 let (http_request, _pl) = request.into_parts();

@@ -1,8 +1,9 @@
+use std::fmt::{Display, Formatter};
 use std::{collections::HashMap, convert::TryFrom, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
-use crate::common::model::UserSession;
+use crate::common::model::{TokenSession, UserSession};
 
 #[derive(Clone, prost::Message, Serialize, Deserialize)]
 pub struct CacheItemDo {
@@ -31,7 +32,7 @@ pub enum CacheType {
     String,
     Map,
     UserSession,
-    //TokenSession,
+    ApiTokenSession, //open api
 }
 
 impl Default for CacheType {
@@ -46,7 +47,7 @@ impl CacheType {
             CacheType::String => 1,
             CacheType::Map => 2,
             CacheType::UserSession => 3,
-            //CacheType::TokenSession => 4,
+            CacheType::ApiTokenSession => 4,
         }
     }
 
@@ -55,7 +56,7 @@ impl CacheType {
             1 => Ok(CacheType::String),
             2 => Ok(CacheType::Map),
             3 => Ok(CacheType::UserSession),
-            //4 => Ok(CacheType::TokenSession),
+            4 => Ok(CacheType::ApiTokenSession),
             _ => Err(anyhow::anyhow!("unknown type from {}", &v)),
         }
     }
@@ -67,9 +68,15 @@ pub struct CacheKey {
     pub key: Arc<String>,
 }
 
-impl ToString for CacheKey {
-    fn to_string(&self) -> String {
+impl CacheKey {
+    pub fn to_key_string(&self) -> String {
         format!("{}\x00{}", self.cache_type.get_type_data(), &self.key)
+    }
+}
+
+impl Display for CacheKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}\x00{}", self.cache_type.get_type_data(), &self.key)
     }
 }
 
@@ -112,7 +119,7 @@ pub enum CacheValue {
     Map(Arc<HashMap<String, String>>),
     //后面UserSession换成定义好的对象
     UserSession(Arc<UserSession>),
-    //TokenSession(HashMap<String,String>),
+    ApiTokenSession(Arc<TokenSession>),
 }
 
 impl Default for CacheValue {
@@ -127,6 +134,7 @@ impl CacheValue {
             CacheValue::String(_) => CacheType::String,
             CacheValue::Map(_) => CacheType::Map,
             CacheValue::UserSession(_) => CacheType::UserSession,
+            CacheValue::ApiTokenSession(_) => CacheType::ApiTokenSession,
         }
     }
 
@@ -135,7 +143,7 @@ impl CacheValue {
             CacheValue::String(v) => v.as_bytes().to_owned(),
             CacheValue::Map(m) => serde_json::to_vec(m).unwrap(),
             CacheValue::UserSession(v) => serde_json::to_vec(v).unwrap(),
-            //CacheValue::TokenSession(v) => serde_json::to_vec(v).unwrap(),
+            CacheValue::ApiTokenSession(v) => serde_json::to_vec(v).unwrap(),
         }
     }
 
@@ -146,7 +154,9 @@ impl CacheValue {
             CacheType::UserSession => Ok(CacheValue::UserSession(Arc::new(
                 serde_json::from_slice(&data)?,
             ))),
-            //CacheType::TokenSession => Ok(CacheValue::TokenSession(serde_json::from_slice(&data)?)),
+            CacheType::ApiTokenSession => {
+                Ok(CacheValue::ApiTokenSession(serde_json::from_slice(&data)?))
+            }
         }
     }
 }

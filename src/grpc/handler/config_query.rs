@@ -2,7 +2,9 @@
 
 use std::sync::Arc;
 
+use crate::config::config_type::ConfigType;
 use crate::grpc::api_model::NOT_FOUND;
+use crate::grpc::HandlerResult;
 use crate::{
     common::appdata::AppShareData,
     config::core::{ConfigActor, ConfigCmd, ConfigKey, ConfigResult},
@@ -34,7 +36,7 @@ impl PayloadHandler for ConfigQueryRequestHandler {
         &self,
         request_payload: crate::grpc::nacos_proto::Payload,
         _request_meta: crate::grpc::RequestMeta,
-    ) -> anyhow::Result<Payload> {
+    ) -> anyhow::Result<HandlerResult> {
         let body_vec = request_payload.body.unwrap_or_default().value;
         let request: ConfigQueryRequest = serde_json::from_slice(&body_vec)?;
         let cmd = ConfigCmd::GET(ConfigKey::new(
@@ -51,11 +53,18 @@ impl PayloadHandler for ConfigQueryRequestHandler {
                 //let res:ConfigResult = res.unwrap();
                 let r: ConfigResult = res.unwrap();
                 match r {
-                    ConfigResult::DATA(content, md5) => {
+                    ConfigResult::Data {
+                        value: content,
+                        md5,
+                        config_type,
+                        last_modified,
+                        ..
+                    } => {
                         //v.to_owned()
                         response.result_code = SUCCESS_CODE;
                         response.content = content;
-                        response.content_type = Some("text".to_owned());
+                        response.content_type =
+                            Some(config_type.unwrap_or(ConfigType::Text.get_value()));
                         //response.encrypted_data_key = Some("".to_owned());
                         //java nacos中定义tag类型是String;
                         //nacos-sdk-go中定义tag类型为bool, nacos-sdk-go中直接设置 response.tag = request.tag会报错
@@ -64,6 +73,7 @@ impl PayloadHandler for ConfigQueryRequestHandler {
                                 response.tag = Some(tag);
                             }
                         }
+                        response.last_modified = last_modified;
                         response.md5 = Some(md5);
                     }
                     _ => {
@@ -72,19 +82,19 @@ impl PayloadHandler for ConfigQueryRequestHandler {
                         response.message = Some("config data not exist".to_owned());
                     }
                 }
-                Ok(PayloadUtils::build_payload(
+                Ok(HandlerResult::success(PayloadUtils::build_payload(
                     "ConfigQueryResponse",
                     serde_json::to_string(&response)?,
-                ))
+                )))
             }
             Err(err) => {
                 response.result_code = ERROR_CODE;
                 response.error_code = ERROR_CODE;
                 response.message = Some(err.to_string());
-                Ok(PayloadUtils::build_payload(
+                Ok(HandlerResult::success(PayloadUtils::build_payload(
                     "ErrorResponse",
                     serde_json::to_string(&response)?,
-                ))
+                )))
             }
         }
     }

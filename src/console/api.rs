@@ -5,11 +5,10 @@ use actix_web::{http::header, web, HttpResponse, Responder};
 
 use crate::common::appdata::AppShareData;
 use crate::config::core::ConfigActor;
-use crate::naming::api::{
-    add_instance, del_instance, get_instance, query_service, remove_service, update_instance,
-    update_service,
-};
+
 use crate::naming::ops::ops_api::query_opt_service_list;
+use crate::openapi::naming::instance::{del_instance, get_instance, update_instance};
+use crate::openapi::naming::service::{query_service, remove_service, update_service};
 //use crate::console::raft_api::{raft_add_learner, raft_change_membership, raft_init, raft_metrics, raft_read, raft_write};
 
 use super::cluster_api::query_cluster_info;
@@ -22,6 +21,8 @@ use super::{
     NamespaceUtils,
 };
 use super::{login_api, user_api};
+
+use super::v2;
 
 pub async fn query_namespace_list(config_addr: web::Data<Addr<ConfigActor>>) -> impl Responder {
     //HttpResponse::InternalServerError().body("system error")
@@ -144,15 +145,15 @@ pub fn console_api_config(config: &mut web::ServiceConfig) {
     );
 }
 
-pub fn console_api_config_new(config: &mut web::ServiceConfig) {
+pub fn console_api_config_v1(config: &mut web::ServiceConfig) {
     config.service(
         web::scope("/rnacos/api/console")
             .service(
                 web::resource("/cs/configs")
-                    .route(web::get().to(crate::config::api::get_config))
-                    .route(web::post().to(crate::config::api::add_config))
-                    .route(web::put().to(crate::config::api::add_config))
-                    .route(web::delete().to(crate::config::api::del_config)),
+                    .route(web::get().to(crate::openapi::config::api::get_config))
+                    .route(web::post().to(crate::openapi::config::api::add_config))
+                    .route(web::put().to(crate::openapi::config::api::add_config))
+                    .route(web::delete().to(crate::openapi::config::api::del_config)),
             )
             .service(
                 web::resource("/ns/service")
@@ -164,7 +165,7 @@ pub fn console_api_config_new(config: &mut web::ServiceConfig) {
             .service(
                 web::resource("/ns/instance")
                     .route(web::get().to(get_instance))
-                    .route(web::post().to(add_instance))
+                    .route(web::post().to(update_instance))
                     .route(web::put().to(update_instance))
                     .route(web::delete().to(del_instance)),
             )
@@ -207,6 +208,109 @@ pub fn console_api_config_new(config: &mut web::ServiceConfig) {
             .service(
                 web::resource("/user/reset_password")
                     .route(web::post().to(user_api::reset_password)),
+            ),
+    );
+}
+
+pub fn console_api_config_v2(config: &mut web::ServiceConfig) {
+    config.service(
+        web::scope("/rnacos/api/console/v2")
+            .service(web::resource("/login/login").route(web::post().to(v2::login_api::login)))
+            .service(
+                web::resource("/login/captcha").route(web::get().to(v2::login_api::gen_captcha)),
+            )
+            .service(web::resource("/login/logout").route(web::post().to(v2::login_api::logout)))
+            .service(web::resource("/user/info").route(web::get().to(v2::user_api::get_user_info)))
+            .service(
+                web::resource("/user/list").route(web::get().to(v2::user_api::get_user_page_list)),
+            )
+            .service(web::resource("/user/add").route(web::post().to(v2::user_api::add_user)))
+            .service(web::resource("/user/update").route(web::post().to(v2::user_api::update_user)))
+            .service(web::resource("/user/remove").route(web::post().to(v2::user_api::remove_user)))
+            .service(
+                web::resource("/user/web_resources")
+                    .route(web::get().to(v2::user_api::get_user_web_resources)),
+            )
+            .service(
+                web::resource("/user/reset_password")
+                    .route(web::post().to(v2::user_api::reset_password)),
+            )
+            .service(
+                web::resource("/namespaces/list")
+                    .route(web::get().to(v2::namespace_api::query_namespace_list)),
+            )
+            .service(
+                web::resource("/namespaces/add")
+                    .route(web::post().to(v2::namespace_api::add_namespace)),
+            )
+            .service(
+                web::resource("/namespaces/update")
+                    .route(web::post().to(v2::namespace_api::update_namespace)),
+            )
+            .service(
+                web::resource("/namespaces/remove")
+                    .route(web::post().to(v2::namespace_api::remove_namespace)),
+            )
+            .service(
+                web::resource("/cluster/cluster_node_list")
+                    .route(web::get().to(v2::cluster_api::query_cluster_info)),
+            )
+            .service(
+                web::resource("/config/import")
+                    .route(web::post().to(v2::config_api::import_config)),
+            )
+            .service(
+                web::resource("/config/download")
+                    .route(web::get().to(v2::config_api::download_config)),
+            )
+            .service(
+                web::resource("/config/list")
+                    .route(web::get().to(v2::config_api::query_config_list)),
+            )
+            .service(web::resource("/config/info").route(web::get().to(v2::config_api::get_config)))
+            .service(web::resource("/config/add").route(web::post().to(v2::config_api::add_config)))
+            .service(
+                web::resource("/config/update").route(web::post().to(v2::config_api::add_config)),
+            )
+            .service(
+                web::resource("/config/remove")
+                    .route(web::post().to(v2::config_api::remove_config)),
+            )
+            .service(
+                web::resource("/config/history")
+                    .route(web::get().to(v2::config_api::query_history_config_page)),
+            )
+            .service(
+                web::resource("/service/list")
+                    .route(web::get().to(v2::naming_api::query_service_list)),
+            )
+            .service(
+                web::resource("/service/add").route(web::post().to(v2::naming_api::add_service)),
+            )
+            .service(
+                web::resource("/service/update").route(web::post().to(v2::naming_api::add_service)),
+            )
+            .service(
+                web::resource("/service/remove")
+                    .route(web::post().to(v2::naming_api::remove_service)),
+            )
+            .service(
+                web::resource("/instance/list")
+                    .route(web::get().to(v2::naming_api::query_instances_list)),
+            )
+            .service(
+                web::resource("/instance/info").route(web::get().to(v2::naming_api::get_instance)),
+            )
+            .service(
+                web::resource("/instance/add").route(web::post().to(v2::naming_api::add_instance)),
+            )
+            .service(
+                web::resource("/instance/update")
+                    .route(web::post().to(v2::naming_api::add_instance)),
+            )
+            .service(
+                web::resource("/instance/remove")
+                    .route(web::post().to(v2::naming_api::remove_instance)),
             ),
     );
 }

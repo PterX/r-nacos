@@ -11,7 +11,7 @@ use crate::{
     common::{
         appdata::AppShareData,
         constant::{APP_VERSION, EMPTY_STR},
-        model::{ApiResult, PageResult, UserSession},
+        model::{ApiResult, PageResultOld, UserSession},
     },
     user::{model::UserDto, permission::UserRole, UserManagerReq, UserManagerResult},
 };
@@ -29,7 +29,7 @@ pub async fn get_user_info(req: HttpRequest) -> actix_web::Result<impl Responder
     if let Some(session) = req.extensions().get::<Arc<UserSession>>() {
         let userinfo = UserInfo {
             username: Some(session.username.clone()),
-            nickname: Some(session.nickname.clone()),
+            nickname: session.nickname.clone(),
         };
         Ok(HttpResponse::Ok().json(ApiResult::success(Some(userinfo))))
     } else {
@@ -127,7 +127,7 @@ pub async fn get_user_page_list(
     };
     match app.user_manager.send(msg).await.unwrap().unwrap() {
         UserManagerResult::UserPageResult(size, list) => {
-            Ok(HttpResponse::Ok().json(ApiResult::success(Some(PageResult { size, list }))))
+            Ok(HttpResponse::Ok().json(ApiResult::success(Some(PageResultOld { size, list }))))
         }
         _ => Ok(HttpResponse::Ok().json(ApiResult::<()>::error(
             "NOT_FOUND_USER_SESSION".to_owned(),

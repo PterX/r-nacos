@@ -2,6 +2,7 @@ use std::{fmt::Debug, sync::Arc};
 
 use actix::prelude::*;
 
+use crate::grpc::handler::RAFT_ROUTE_REQUEST;
 use crate::raft::filestore::core::FileStore;
 use crate::{
     config::core::{ConfigActor, ConfigAsyncCmd, ConfigCmd},
@@ -77,14 +78,20 @@ impl ConfigRoute {
     pub async fn set_config(&self, req: SetConfigReq) -> anyhow::Result<()> {
         match self.raft_addr_route.get_route_addr().await? {
             RouteAddr::Local => {
-                let cmd = ConfigAsyncCmd::Add(req.config_key, req.value, req.op_user);
+                let cmd = ConfigAsyncCmd::Add {
+                    key: req.config_key,
+                    value: req.value,
+                    op_user: req.op_user,
+                    config_type: req.config_type,
+                    desc: req.desc,
+                };
                 self.config_addr.send(cmd).await?.ok();
             }
             RouteAddr::Remote(_, addr) => {
                 let source_req = req.clone();
                 let req: RouterRequest = req.into();
                 let request = serde_json::to_string(&req).unwrap_or_default();
-                let payload = PayloadUtils::build_payload("RaftRouteRequest", request);
+                let payload = PayloadUtils::build_payload(RAFT_ROUTE_REQUEST, request);
                 let resp_payload = self.cluster_sender.send_request(addr, payload).await?;
                 let body_vec = resp_payload.body.unwrap_or_default().value;
                 let _: RouterResponse = serde_json::from_slice(&body_vec)?;
@@ -109,7 +116,7 @@ impl ConfigRoute {
             RouteAddr::Remote(_, addr) => {
                 let req: RouterRequest = req.into();
                 let request = serde_json::to_string(&req).unwrap_or_default();
-                let payload = PayloadUtils::build_payload("RaftRouteRequest", request);
+                let payload = PayloadUtils::build_payload(RAFT_ROUTE_REQUEST, request);
                 let resp_payload = self.cluster_sender.send_request(addr, payload).await?;
                 let body_vec = resp_payload.body.unwrap_or_default().value;
                 let _: RouterResponse = serde_json::from_slice(&body_vec)?;

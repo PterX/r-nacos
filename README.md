@@ -11,23 +11,28 @@ r-nacos设计上完全兼容最新版本nacos面向client sdk 的协议（包含
 
 r-nacos相较于java nacos来说，是一个提供相同功能，启动更快、占用系统资源更小、性能更高、运行更稳定的服务。
 
-详细说明可以看 [r-nacos book](https://r-nacos.github.io/r-nacos/index.html)
-
-## 开发原由
-
-一方面自己学习rust后想写个中间件实践rust网络并发编程。
-
-另一方面自己开发应用有用到nacos，个人云服务部署一个nacos太重，本地开发测试开nacos也比较重。
-
-本人能读java源码又能写rust，分析确认开发可行性后，决定先写一个最小功能集给自己用。
-
-自己写完后用下来整体体验很顺畅，就想开源出来给有需要的人使用。
+详细说明可以看 [r-nacos docs](https://r-nacos.github.io/docs/)
 
 ## 适用场景
 
 1. 开发测试环境使用nacos，nacos服务可以换成r-nacos。启动更快，秒启动。
 2. 个人资源云服务部署的 nacos，可以考虑换成r-nacos。资源占用率低: 包10M 出头，不依赖 JDK；运行时 cpu 小于0.5% ，小于5M（具体和实例有关）。
 3. 使用非订制nacos服务 ，希望能提升服务性能与稳定性，可以考虑迁移到 r-nacos。
+
+
+## 演示
+
+控制台演示地址： [https://www.bestreven.top/rnacos/](https://www.bestreven.top/rnacos/) 
+(演示服务与网址由一位热心用户提供）
+
+用户名: `dev` ,密码: `dev`
+
+演示内容：
+
++ 配置中心：接近5千个配置
++ 服务中心：30个服务，每个服务有15个实例，共450个服务实例。
+
+*注：* 以上演示内容，服务使用的内存在15M左右
 
 ## 快速开始
 
@@ -37,7 +42,7 @@ r-nacos相较于java nacos来说，是一个提供相同功能，启动更快、
 
 方式1：从 [github release](https://github.com/r-nacos/r-nacos/releases) 下载对应系统的应用包，解压后即可运行。
 
-linux 或 mac 
+linux 或 MacOS
 
 ```shell
 # 解压
@@ -75,8 +80,6 @@ docker 的容器运行目录是 /io，会从这个目录读写配置文件
 + 最新的gnu正式版本: `qingpan/rnacos:stable`
 + 最新的alpine正式版本: `qingpan/rnacos:stable-alpine`
 
-**MacOS arm系统补充说明** ：目前MacOS arm系统运行`stable`镜像失败，可以先换成`stable-alpine`镜像。等后面解决arm `stable`镜像问题后再把这个注意事项去掉。
-
 
 方式3：通过 cargo 编译安装
 
@@ -93,8 +96,25 @@ rnacos
 git clone https://github.com/r-nacos/r-nacos.git
 cd r-nacos
 cargo build --release
-cargo run
+cargo run --release
 ```
+
+方式5: MacOS支持通过brew安装
+
+```shell
+# 把r-nacos加入taps
+brew tap r-nacos/r-nacos 
+
+# brew 安装 r-nacos
+brew install r-nacos
+
+# 运行
+rnacos
+
+# 后续可以直接通过以下命令更新到最新版本
+# brew upgrade r-nacos 
+```
+
 
 测试、试用推荐使用第1、第2种方式，直接下载就可以使用。
 
@@ -118,13 +138,26 @@ cargo run
 |RNACOS_RAFT_SNAPSHOT_LOG_SIZE|raft打包snapshot镜像的日志数量;即变更日志超过这个值则会触发一次打包镜像|默认值10000|10000|0.5.0|
 |RUST_LOG|日志等级:debug,info,warn,error;所有http,grpc请求都会打info日志,如果不观注可以设置为error减少日志量|info|error|0.3.0|
 |RNACOS_ENABLE_NO_AUTH_CONSOLE|是否开启无鉴权控制台|false|false|0.5.2|
+|RNACOS_CONSOLE_LOGIN_TIMEOUT|控制台登陆有效时长(单位为秒)|一天,86400秒|86400|0.5.0|
+|RNACOS_GMT_OFFSET_HOURS|日志时间的时区，单位小时；默认为本机时区，运行在docker时需要指定|local|8(东8区),-5(西5区)|0.5.7|
+|RNACOS_ENABLE_OPEN_API_AUTH|是否对openapi开启鉴权；（注：nacos切换到r-nacos过程中不要开启鉴权）|false|true|0.5.8|
+|RNACOS_API_LOGIN_TIMEOUT|open api鉴权有效时长，单位为秒；(注：从不鉴权到开启鉴权，需要间隔对应时长以保证客户端token能更新生效)|一小时,3600秒|3600|0.5.8|
+|RNACOS_CLUSTER_TOKEN|集群间的通信请求校验token，空表示不开启校验，设置后只有相同token的节点间才可通讯|空字符串|1234567890abcdefg|0.5.8|
+|RNACOS_INIT_ADMIN_USERNAME|初始化管理员用户名，只在主节点第一次启动时生效|admin|rnacos|0.5.11|
+|RNACOS_INIT_ADMIN_PASSWORD|初始化管理员密码，只在主节点第一次启动时生效|admin|rnacos123456|0.5.11|
+|RNACOS_ENABLE_METRICS|是否开启监控指标功能|true|true|0.5.13|
+|RNACOS_METRICS_COLLECT_INTERVAL_SECOND|监控指标采集指标间隔,单位秒,最小间隔为1秒,不能小于RNACOS_METRICS_LOG_INTERVAL_SECOND|15|5|0.5.14|
+|RNACOS_METRICS_LOG_INTERVAL_SECOND|监控指标采集打印到日志的间隔,单位秒,最小间隔为5秒|60|30|0.5.13|
 
 
-启动配置方式可以参考： [运行参数说明](https://r-nacos.github.io/r-nacos/deplay_env.html)
+启动配置方式可以参考： [运行参数说明](https://r-nacos.github.io/docs/notes/env_config/)
 
 【集群部署】
 
-集群部署参考： [集群部署](https://r-nacos.github.io/r-nacos/cluster_deploy.html)
+集群部署参考文档： 
+
++ [集群部署](https://r-nacos.github.io/docs/notes/cluster_deploy)
++ [集群部署样例](https://r-nacos.github.io/docs/notes/deploy_example/docker_cluster_deploy/)
 
 
 ### 二、运行nacos 应用
@@ -230,21 +263,40 @@ nacos_rust_client = "0.3.0"
 
 老控制台`http://127.0.0.1:8848/rnacos/` 标记废弃，默认不开启，可通过配置开启。老控制台不需要登陆鉴权、不支持用户管理。
 
+控制台主要包含用户管理、命名空间管理、配置管理、服务管理、服务实例管理。
 
-主要包含用户管理、命名空间管理、配置管理、服务管理、服务实例管理。
+> 控制台线上演示
 
-1、用户登陆
+地址： [https://www.bestreven.top/rnacos/](https://www.bestreven.top/rnacos/) 
+(演示服务与网址由一位热心用户提供）
+
+演示用户：
+
++ 开发者:
+    + 用户名: `dev` ,密码: `dev`
++ 访客:
+    + 用户名: `guest`, 密码: `guest`
+
+演示内容：
+
++ 配置中心：接近5千个配置
++ 服务中心：30个服务，每个服务有15个实例，共450个服务实例。
+
+
+
+
+> 1、用户登陆
 
 在新控制台打开一个地址，如果检测到没有登陆，会自动跳转到登陆页面。
 一个用户连续登陆失败5次，会被锁定1个小时。这个次数可以通过启动参数配置。
 
 <img style="width: 400px;" width="400" src="https://github.com/r-nacos/r-nacos/raw/master/doc/assets/imgs/20231223220425.png" />
 
-2、用户管理
+> 2、用户管理
 
 ![](https://github.com/r-nacos/r-nacos/raw/master/doc/assets/imgs/20231223222325.png)
 
-系统会默认创建一个名为`admin`的用户，密码为`admin`。 
+系统会默认创建一个名为`admin`的用户，密码为`admin`(也可以通过环境变量 RNACOS_INIT_ADMIN_USERNAME 和 RNACOS_INIT_ADMIN_PASSWORD 修改默认账号的账户名和密码)。 
 
 进去控制台后可按需管理用户。 
 
@@ -258,7 +310,7 @@ nacos_rust_client = "0.3.0"
 **注意：** 对外暴露的nacos控制台端口前，建议增加一个自定义管理员，把admin用户删除或禁用。
 
 
-3、配置管理
+> 3、配置管理
 
 配置列表管理
 
@@ -268,15 +320,15 @@ nacos_rust_client = "0.3.0"
 
 ![](https://github.com/r-nacos/r-nacos/raw/master/doc/assets/imgs/20230506155545.png)
 
-4、服务列表管理
+> 4、服务列表管理
 
 ![](https://github.com/r-nacos/r-nacos/raw/master/doc/assets/imgs/20230506155133.png)
 
-5、服务实例管理
+> 5、服务实例管理
 
 ![](https://github.com/r-nacos/r-nacos/raw/master/doc/assets/imgs/20230506155158.png)
 
-6、命名空间管理
+> 6、命名空间管理
 
 ![](https://user-images.githubusercontent.com/1174480/268299574-4947b9f8-79e1-48e2-97fe-e9767e26ddc0.png)
 
@@ -296,7 +348,6 @@ nacos_rust_client = "0.3.0"
 访问认证：
 
 1. 有提供获取认证token的接口
-2. 实际请求暂不支持认证，都算认证通过。
 
 配置中心：
 
@@ -342,7 +393,7 @@ nacos_rust_client = "0.3.0"
 ### 三、面向部署、集群的功能
 
 1. 支持单机部署
-2. 支持集群部署。集群部署配置中心数据使用raft+节点本地存储组成的分布式存储，不需要依赖mysql。具体参考 [集群部署说明](https://r-nacos.github.io/r-nacos/cluster_deploy.html)
+2. 支持集群部署。集群部署配置中心数据使用raft+节点本地存储组成的分布式存储，不需要依赖mysql。具体参考 [集群部署说明](https://r-nacos.github.io/docs/notes/deploy_example/docker_cluster_deploy/)
 
 
 ## 性能
@@ -362,19 +413,22 @@ nacos_rust_client = "0.3.0"
 **注：** 具体结果和压测环境有关
 
 详细信息可以参考
-[性能与容量说明](https://r-nacos.github.io/r-nacos/performance.html)
+[性能与容量说明](https://r-nacos.github.io/docs/notes/performance/)
 
 
 ## r-nacos架构图
 
-单实例：
 
-![](https://github.com/r-nacos/r-nacos/raw/master/doc/assets/imgs/rnacos_L2_0.1.4.svg)
+![架构图](https://raw.githubusercontent.com/r-nacos/r-nacos/master/doc/assets/imgs/r-nacos_L2_0.3.7.svg)
 
-前端应用因依赖nodejs,所以单独放到另一个项目 [r-nacos-console-web](https://github.com/r-nacos/rnacos-console-web) ,再通过cargo 把打包好的前端资源引入到本项目,避免开发rust时还要依赖nodejs。
+说明：
 
++ r-nacos默认支持集群部署，单机就相当于一个节点的集群，后续有需要可以按需加入新的节点；
++ 数据持久化使用raft协议分布式数据库(raft协议+节点文件存储),类似etcd; 
++ 只需对`RNACOS_CONFIG_DB_DIR:nacos_db`目录下的文件备份与恢复，即可实现数据的备份与恢复；
++ r-nacos控制台使用前后端分离架构；前端应用因依赖nodejs,所以单独放到另一个项目 [r-nacos-console-web](https://github.com/r-nacos/rnacos-console-web) ,再通过cargo 把打包好的前端资源引入到本项目,避免开发rust时还要依赖nodejs。
 
-r-nacos架构设计参考： [架构](https://r-nacos.github.io/r-nacos/architecture.html)
+r-nacos架构设计参考： [架构](https://r-nacos.github.io/docs/notes/architecture/)
 
 
 ## 使用登记

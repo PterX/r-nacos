@@ -45,8 +45,6 @@ docker 的容器运行目录是 /io，会从这个目录读写配置文件
 + 最新的gnu正式版本: `qingpan/rnacos:stable`
 + 最新的alpine正式版本: `qingpan/rnacos:stable-alpine`
 
-**MacOS arm系统补充说明** ：目前MacOS arm系统运行`stable`镜像失败，可以先换成`stable-alpine`镜像。等后面解决arm `stable`镜像问题后再把这个注意事项去掉。
-
 
 方式3：通过 cargo 编译安装
 
@@ -63,8 +61,26 @@ rnacos
 git clone https://github.com/heqingpan/rnacos.git
 cd rnacos
 cargo build --release
-cargo run
+cargo run --release
 ```
+
+
+方式5: MacOS支持通过brew安装
+
+```shell
+# 把r-nacos加入taps
+brew tap r-nacos/r-nacos 
+
+# brew 安装 r-nacos
+brew install r-nacos
+
+# 运行
+rnacos
+
+# 后续可以直接通过以下命令更新到最新版本
+# brew upgrade r-nacos 
+```
+
 
 测试、试用推荐使用第1、第2种方式，直接下载就可以使用。
 
@@ -136,7 +152,7 @@ curl "http://127.0.0.1:8848/nacos/v1/ns/instance/list?&namespaceId=public&servic
 
 ![](https://github.com/heqingpan/rnacos/raw/master/doc/assets/imgs/20231223222325.png)
 
-系统会默认创建一个名为`admin`的用户，密码为`admin`。 
+系统会默认创建一个名为`admin`的用户，密码为`admin`(也可以通过环境变量 RNACOS_INIT_ADMIN_USERNAME 和 RNACOS_INIT_ADMIN_PASSWORD 修改默认账号的账户名和密码)。 
 
 进去控制台后可按需管理用户。 
 

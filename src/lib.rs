@@ -1,10 +1,10 @@
-pub(crate) mod auth;
 pub mod common;
 pub mod config;
 pub mod console;
 pub mod grpc;
-pub mod middle;
+pub mod metrics;
 pub mod naming;
+pub mod openapi;
 pub mod raft;
 pub mod starter;
 pub mod user;
